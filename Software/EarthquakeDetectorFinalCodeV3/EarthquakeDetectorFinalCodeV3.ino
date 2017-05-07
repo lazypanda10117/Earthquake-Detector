@@ -9,18 +9,13 @@
 RTC_DS3231 rtc;
 MPU6050 mpu;
 
-#define INTERRUPT_PIN 2  // use pin 2 on Arduino Uno & most boards
-//SoftwareSerial sdSerial(10, 11);
-File logFile;
+#define INTERRUPT_PIN 2
 
-//const int fVibPin = 3; //fast vibration sensor input
 const int buzzerPin = 5;
 const int orangeLedPin = 6;
 const int greenLedPin = 7;
 const int redLedPin = 8;
 const int yellowLedPin = 9;
-
-//boolean fVConnect = false;
 
 // MPU control/status vars
 volatile bool mpuInterrupt = false;     // indicates whether MPU interrupt pin has gone high
@@ -56,7 +51,6 @@ double ayRaw;
 double azRaw;
 
 int arrayCount = 0;
-
 const int recurseLength = 12;
 double timeDelay = 0.08;
 int timeCounter = 0;
@@ -71,7 +65,6 @@ double accelAlarmThreshold1 = 3;
 double accelAlarmThreshold2 = 3;
 double accelAlarmThreshold3 = 3.8;
 
-
 double yawState[recurseLength];
 double pitchState[recurseLength];
 double rollState[recurseLength];
@@ -83,11 +76,6 @@ double dtRoll[recurseLength];
 double axState[recurseLength];
 double ayState[recurseLength];
 double azState[recurseLength];
-
-/*double dtAX[recurseLength];
-double dtAY[recurseLength];
-double dtAZ[recurseLength];*/
-
 //end of Setting MPU variables
 
 //equation that model gyroscope magnitude: signal = ke^(c(magnitude))
@@ -100,32 +88,27 @@ double scaleAccelConst = 0.7781699; //b
 
 double mag[3] = {0, 0, 0};
 double magA[3] = {0, 0, 0};
-double avgA[3] = {0, 0, 0};
 double avgD[3] = {0, 0, 0};
+double avgA[3] = {0, 0, 0};
 
+File logFile;
 
 void dmpDataReady() {
   mpuInterrupt = true;
 }
 
 void setup() {
-  // join I2C bus (I2Cdev library doesn't do this automatically)
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
   Wire.begin();
-  //Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
 #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
   Fastwire::setup(400, true);
 #endif
   Serial.begin(115200);
   Serial3.begin(9600);
-  // initialize device
-  //Serial.println(1);
   if (! rtc.begin()) {
     Serial.println("RTC Failed");
     while (1);
   }
-  //Serial.println(2);
-
   if (rtc.lostPower()) {
     Serial.println("RTC Failed");
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
@@ -149,51 +132,27 @@ void setup() {
   }
   mpu.initialize();
   pinMode(INTERRUPT_PIN, INPUT);
-  //pinMode(fVibPin, INPUT);//sets pin as fast vibration sensor input
   pinMode(buzzerPin, OUTPUT);
   pinMode(yellowLedPin, OUTPUT);
   pinMode(redLedPin, OUTPUT);
   pinMode(greenLedPin, OUTPUT);
-
-  // verify connection
   Serial.println(F("Connecting"));
   Serial.println(mpu.testConnection() ? F("Success") : F("Failed"));
-
-  // load and configure the DMP
-  //Serial.println(F("Initializing DMP"));
   devStatus = mpu.dmpInitialize();
-
-  // supply your own gyro offsets here, scaled for min sensitivity
   mpu.setXGyroOffset(220);
   mpu.setYGyroOffset(76);
   mpu.setZGyroOffset(-85);
-  mpu.setZAccelOffset(1788); // 1688 factory default for my test chip
-
-  // make sure it worked (returns 0 if so)
+  mpu.setZAccelOffset(1788);
   if (devStatus == 0) {
-    // turn on the DMP, now that it's ready
-    //Serial.println(F("Enabling DMP"));
     mpu.setDMPEnabled(true);
-    // enable Arduino interrupt detection
-    //Serial.println(F("Setting interrupt"));
     attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
     mpuIntStatus = mpu.getIntStatus();
-    // set our DMP Ready flag so the main loop() function knows it's okay to use it
     Serial.println(F("Start"));
     dmpReady = true;
-    // get expected DMP packet size for later comparison
     packetSize = mpu.dmpGetFIFOPacketSize();
   } else {
-    // ERROR!
-    // 1 = initial memory load failed
-    // 2 = DMP configuration updates failed
-    // (if it's going to break, usually the code will be 1)
-    //Serial.print(F("DMP Initialization failed (code "));
-    //Serial.print(devStatus);
-    //Serial.println(F(")"));
     Serial.println("MPU Failed");
   }
-
   for (int i = 0; i < 3; i++) {
     prevYpr[i] = 9999;
   }
@@ -201,16 +160,12 @@ void setup() {
 
 void loop() {
     if (!dmpReady) return;
-    /*while (!mpuInterrupt && fifoCount < packetSize) {
-      }*/
     mpuInterrupt = false;
     mpuIntStatus = mpu.getIntStatus();
     fifoCount = mpu.getFIFOCount();
     if ((mpuIntStatus & 0x10) || fifoCount == 1024) {
       mpu.resetFIFO();
-      //Serial.println(F("Overflow"));
-      //delay(100);
-    } else if (mpuIntStatus & 0x02) {
+    }else if (mpuIntStatus & 0x02) {
       while (fifoCount < packetSize) fifoCount = mpu.getFIFOCount();
       mpu.getFIFOBytes(fifoBuffer, packetSize);
       fifoCount -= packetSize;
@@ -219,12 +174,10 @@ void loop() {
       mpu.dmpGetAccel(&aa, fifoBuffer);
       mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
       mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-      
       if (stable) {      
         yawRaw = ypr[0] * 180 / M_PI;
         pitchRaw = ypr[1] * 180 / M_PI;
         rollRaw = ypr[2] * 180 / M_PI;
-        
         axRaw = aaReal.x-430;
         ayRaw = aaReal.y;
         azRaw = aaReal.z;
@@ -238,7 +191,7 @@ void loop() {
           for (int i = 0; i < recurseLength-1; i++) {
             set6AxisState(i, yawState[i+1], pitchState[i+1], rollState[i+1], axState[i+1], ayState[i+1], azState[i+1]);
             if(arrayCount>recurseLength){
-              set6AxisDerivative(i, dtYaw[i + 1], dtPitch[i + 1], dtRoll[i + 1], 0,0,0);
+              set3AxisDerivative(i, dtYaw[i + 1], dtPitch[i + 1], dtRoll[i + 1]);
             }
           }
           set6AxisState(recurseLength - 1, yawRaw, pitchRaw, rollRaw, axRaw, ayRaw, azRaw);
@@ -248,9 +201,7 @@ void loop() {
             analyzeAccelSignals();
             String ts = getPreciseTime(ti);
             transferData(ts, yawRaw, pitchRaw, rollRaw, axRaw, ayRaw, azRaw);
-            //hardwareCheck();
             if(!stableN){
-              //Serial.println(1);
               if(magA[1] < 2.5 && magA[2] < 3.5){
                 stableN = true;
               }
@@ -260,9 +211,7 @@ void loop() {
             }
             statusOK();
             timeCounter++;
-            //debugArray();
             delay(timeDelay * 1000);
-
           }else{
             arrayCount++;  
           }
@@ -280,13 +229,11 @@ void loop() {
               while(aaReal.y > 60 && aaReal.z > 60){
                 delay(50);
               }
-            //delay(3000);
           }
         } else {       
           prevYpr[0] = ypr[0] * 180 / M_PI;
           prevYpr[1] = ypr[1] * 180 / M_PI;
           prevYpr[2] = ypr[2] * 180 / M_PI;         
-          //Serial.println("Unstable");
           delay(50);
         }
       }
@@ -307,11 +254,6 @@ void analyzeGyroSignals() {
     tempVal1 = gyroEquation(avgD[i]);
     mag[i] = tempVal1;
   }
-  /*
-  Serial.println(mag[0]);
-  Serial.println(mag[1]);
-  Serial.println(mag[2]);
-  */
 }
 
 double gyroEquation(double d){
@@ -320,19 +262,13 @@ double gyroEquation(double d){
 
 void analyzeAccelSignals(){
   double tempVal2 = 0;
-  avgA[0] = averageDerivative(axState); //averageDerivate function acts as average function
+  avgA[0] = averageDerivative(axState);
   avgA[1] = averageDerivative(ayState);
   avgA[2] = averageDerivative(azState);  
   for (int i = 0; i < 3; i++) {
     tempVal2 = accelEquation(avgA[i]);
     magA[i] = tempVal2;
   }
-  /*
-  Serial.println(magA[0]);
-  Serial.println(magA[1]);
-  Serial.println(magA[2]);
-  Serial.println("----------------------------------------------------------------------------------");
-  */
 }
 
 double accelEquation(double d){
@@ -344,18 +280,12 @@ void setInitialDerivative(int i) {
   dtYaw[i] = yawState[i + 1] - yawState[i];
   dtPitch[i] = pitchState[i + 1] - pitchState[i];
   dtRoll[i] = rollState[i + 1] - rollState[i];
-  /*dtAX[i] = axState[i + 1] - axState[i];
-  dtAY[i] = ayState[i + 1] - ayState[i];
-  dtAZ[i] = azState[i + 1] - azState[i];*/
 }
 
 void setAfterDerivative() {
   dtYaw[recurseLength - 1] = yawState[recurseLength - 1] - yawState[recurseLength - 2];
   dtPitch[recurseLength - 1] = pitchState[recurseLength - 1] - pitchState[recurseLength - 2];
   dtRoll[recurseLength - 1] = rollState[recurseLength - 1] - rollState[recurseLength - 2];
-  /*dtAX[recurseLength - 1] = axState[recurseLength - 1] - axState[recurseLength - 2];
-  dtAY[recurseLength - 1] = ayState[recurseLength - 1] - ayState[recurseLength - 2];
-  dtAZ[recurseLength - 1] = azState[recurseLength - 1] - azState[recurseLength - 2];*/
 }
 
 void set6AxisState(int id, double y, double p, double r, double ax, double ay, double az) {
@@ -367,13 +297,10 @@ void set6AxisState(int id, double y, double p, double r, double ax, double ay, d
   azState[id] = az;
 }
 
-void set6AxisDerivative(int id, double dy, double dp, double dr, double dAX, double dAY, double dAZ) {
+void set3AxisDerivative(int id, double dy, double dp, double dr) {
   dtYaw[id] = dy;
   dtPitch[id] = dp;
   dtRoll[id] = dr;
-  /*dtAX[id] = dAX;
-  dtAY[id] = dAY;
-  dtAZ[id] = dAZ;*/
 }
 
 double averageDerivative(double d[]) {
@@ -397,15 +324,6 @@ void transferData(String preciseTime, double y, double p, double r, double ax, d
   Serial3.println(tP);
   putToSDCard(tS);
 }
-/*
-void hardwareCheck() {
-  fVConnect = digitalRead(fVibPin);
-  if(fVConnect){
-    digitalWrite(yellowLedPin, HIGH);    
-  }else{
-    digitalWrite(yellowLedPin, LOW);    
-  }
-}*/
 
 void statusOK() {
   digitalWrite(greenLedPin, HIGH);
@@ -433,7 +351,9 @@ boolean accelAlarmCheck(){
 }
 
 void alarm(){
-  if(/*fVConnect || */accelAlarmCheck() || gyroAlarmCheck()){
+  boolean a = accelAlarmCheck();
+  boolean b = gyroAlarmCheck();
+  if(a || b){
     digitalWrite(buzzerPin,HIGH);
   }else{
     digitalWrite(buzzerPin,LOW);
@@ -472,97 +392,4 @@ void putToSDCard(String s){
   }else{
     Serial.println("error opening logfile.txt");
   }
-}
-
-void debugArray() {
-  Serial.println("----------------------------------------------------------------------------------------------------------------------------------");
-  Serial.print("Timestamp:");
-  Serial.print(getPreciseTime(ti));
-  Serial.println(" s");
-  Serial.println();
-  Serial.print("Yaw Raw Values: ");
-  for (int i = 0; i < recurseLength; i++) {
-    Serial.print(yawState[i]);
-    if(i != (recurseLength-1))
-      Serial.print(" ,");
-  }
-  Serial.println();
-  Serial.print("Dt Yaw Values: ");
-  for (int i = 0; i < recurseLength; i++) {
-    Serial.print(dtYaw[i]);
-    if(i != (recurseLength-1))
-      Serial.print(" ,");
-  }
-  Serial.println();
-  Serial.print("Average dtYaw: ");
-  Serial.println(averageDerivative(dtYaw));
-
-  Serial.print("Pitch Raw Values: ");
-  for (int i = 0; i < recurseLength; i++) {
-    Serial.print(pitchState[i]);
-    if(i != (recurseLength-1))
-      Serial.print(" ,");
-  }
-  Serial.println();
-  Serial.print("Dt Pitch Values: ");
-  for (int i = 0; i < recurseLength; i++) {
-    Serial.print(dtPitch[i]);
-    if(i != (recurseLength-1))
-      Serial.print(" ,");
-  }
-  Serial.println();
-  Serial.print("Average dtPitch: ");
-  Serial.println(averageDerivative(dtPitch));
-
-  Serial.print("Roll Raw Values: ");
-  for (int i = 0; i < recurseLength; i++) {
-    Serial.print(rollState[i]);
-    if(i != (recurseLength-1))
-      Serial.print(" ,");
-  }
-  Serial.println();
-  Serial.print("Dt Roll Values: ");
-  for (int i = 0; i < recurseLength; i++) {
-    Serial.print(dtRoll[i]);
-    if(i != (recurseLength-1))
-      Serial.print(" ,");  
-  }
-  Serial.println();
-  Serial.print("Average dtRoll: ");
-  Serial.println(averageDerivative(dtRoll));
-  
-  Serial.println();
-  Serial.println(mag[0]);
-  Serial.println(mag[1]);
-  Serial.println(mag[2]);
-  Serial.println();
-
-  
-  Serial.print("Accel X Raw Values: ");
-  for (int i = 0; i < recurseLength; i++) {
-    Serial.print(axState[i]);
-    if(i != (recurseLength-1))
-      Serial.print(" ,");
-  }
-  Serial.println();
-  Serial.print("Accel Y Raw Values: ");
-  for (int i = 0; i < recurseLength; i++) {
-    Serial.print(ayState[i]);
-    if(i != (recurseLength-1))
-      Serial.print(" ,");
-  }
-  Serial.println();
-  Serial.print("Accel Z Raw Values: ");
-  for (int i = 0; i < recurseLength; i++) {
-    Serial.print(azState[i]);
-    if(i != (recurseLength-1))
-      Serial.print(" ,");
-  }  
-  Serial.println();
-  Serial.println();
-  Serial.println(magA[0]);
-  Serial.println(magA[1]);
-  Serial.println(magA[2]);
-  Serial.println();
-  Serial.println("----------------------------------------------------------------------------------------------------------------------------------");
 }
