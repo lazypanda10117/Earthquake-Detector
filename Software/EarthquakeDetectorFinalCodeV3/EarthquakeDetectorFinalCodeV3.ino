@@ -60,7 +60,7 @@ long ti; //unix time
 String tS; //string unix time
 String sdTimeName = "";
 
-double gyroAlarmThreshold = 2.5;
+double gyroAlarmThreshold = 1.5;
 double accelAlarmThreshold1 = 3;
 double accelAlarmThreshold2 = 3;
 double accelAlarmThreshold3 = 3.8;
@@ -313,7 +313,8 @@ double averageDerivative(double d[]) {
 
 void transferData(String preciseTime, double y, double p, double r, double ax, double ay, double az) {
   String tS = "{" + preciseTime + "," + String(y,2) + "," + String(p,2) + "," + String(r,2) + "," + String(mag[0],2) + "," + String(mag[1],2) + "," + String(mag[2],2) + "," + String(ax,2) + "," + String(ay,2) + "," + String(az,2) + "," + String(magA[0],2) + "," + String(magA[1],2) + "," + String(magA[2],2)+"}";
-  String tP =  "{" + preciseTime + "," /*+ String(mag[0],2) + "," + String(mag[1],2) + "," + String(mag[2],2) +  ","*/ + String(magA[0],2) + "," + String(magA[1],2) + "," + String(magA[2],2)+"}";
+  String tP =  "{" + preciseTime + "," + String(mag[0],2) + "," + String(mag[1],2) + "," + String(mag[2],2) +  "," + String(magA[0],2) + "," + String(magA[1],2) + "," + String(magA[2],2)+"}";
+  //String tA =  "{" + preciseTime + "," + String(magA[0],2) + "," + String(magA[1],2) + "," + String(magA[2],2)+"}";
 
   if(timeCounter%((int)((timeStackToUpload*100)/(int)(100*timeDelay))) == 0){
     DateTime now = rtc.now();
