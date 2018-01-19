@@ -1,4 +1,4 @@
-Limiting-Machine
+#Limiting-Machine: An earthquake detector made with Arduino and Processing, utilizing gyroscope and accelerometer.
 
 
 Earthquake Detector Demo:
