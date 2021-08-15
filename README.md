@@ -18,3 +18,9 @@ We constructed an earthquake detector that can accurately detect earthquakes fro
 
 [![Earthquake Detector Demo](http://img.youtube.com/vi/r_JWGgkC840/0.jpg)](http://www.youtube.com/watch?v=r_JWGgkC840 "Earthquake Detector Demo")
 
+
+<br>
+
+**Contributor**: 
+
+Jeffrey Kam, Joseph Kwon, and Woojin Choi.
